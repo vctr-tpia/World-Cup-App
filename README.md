@@ -78,16 +78,63 @@ Both will detect the Vite app automatically and build it with the default comman
 - Build: `npm run build`
 - Output directory: `dist`
 
+### Shared saves with Supabase
+
+By default, score edits save in the browser only. If you want everyone opening the hosted
+site to see the same edited results, add Supabase and the app will switch to shared online
+storage automatically whenever these Vite env vars are present:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Create this table in Supabase:
+
+```sql
+create table public.app_state (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_state enable row level security;
+
+create policy "Public can read app state"
+on public.app_state
+for select
+to anon
+using (true);
+
+create policy "Public can insert app state"
+on public.app_state
+for insert
+to anon
+with check (true);
+
+create policy "Public can update app state"
+on public.app_state
+for update
+to anon
+using (true)
+with check (true);
+
+create policy "Public can delete app state"
+on public.app_state
+for delete
+to anon
+using (true);
+
+grant select, insert, update, delete on public.app_state to anon;
+```
+
+Once the two env vars are set in Vercel and the site is redeployed, the `Results` tab will
+read and write shared state from Supabase instead of local browser storage.
+
 ## Known simplifications (read before trusting this for anything important)
 
-- **Round of 32 bracket pairing is randomized per simulation**, not FIFA's exact
-  pre-published slot table. FIFA assigns specific bracket slots to specific
-  group-position combinations (e.g. "1st in Group A plays the highest-ranked
-  qualifying 3rd-place team from Groups C/D/F..."), which depends on which combination
-  of third-place teams actually qualifies. Replicating that exactly requires hard-coding
-  FIFA's slot-allocation table. The current version avoids same-group rematches in the
-  immediate next round but doesn't reproduce the official slotting. This affects *which*
-  team a given side faces in the Round of 32, not the underlying team-strength estimates.
+- **The app now uses FIFA's fixed Round of 32 slot table**, including the official
+  third-place-team combination mapping. That means the knockout bracket should match the
+  published tournament regulations. If FIFA changes that structure before 2026, the app
+  would need to be updated manually.
 - **Group tiebreakers are simplified** (points → goal difference → goals scored). The
   real rules also include head-to-head results and fair play (cards), omitted here for
   speed at 10,000 iterations.
